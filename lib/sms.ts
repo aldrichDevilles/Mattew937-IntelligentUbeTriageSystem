@@ -1,5 +1,7 @@
 import { supabaseAdmin } from "../db/supabase";
 
+const USE_MOCK_SMS = process.env.USE_MOCK_SMS === "true";
+
 export async function sendGradeSms(farmerId: string, batch: any) {
   const { data: farmer } = await supabaseAdmin
     .from("farmers")
@@ -7,30 +9,42 @@ export async function sendGradeSms(farmerId: string, batch: any) {
     .eq("id", farmerId)
     .single();
 
-  if (!farmer) return;
+  if (!farmer) return { message: null, delivered: false };
 
   const message = `Hi ${farmer.name}, your ube batch graded ${batch.grade} (score ${batch.anthocyanin_score.toFixed(1)}). Est. value based on current buyer rates.`;
 
+  if (USE_MOCK_SMS) {
+    console.log(`[MOCK SMS] To: ${farmer.phone_number} — ${message}`);
+    await supabaseAdmin
+      .from("batches")
+      .update({ status: "sms_sent" })
+      .eq("id", batch.id);
+    return { message, delivered: true, mocked: true };
+  }
+
   const params = new URLSearchParams({
-    apikey: process.env.SEMAPHORE_API_KEY!,
-    number: farmer.phone_number,
+    apikey: process.env.SMSMOBILEAPI_KEY!,
+    recipients: farmer.phone_number,
     message,
-    sendername: process.env.SEMAPHORE_SENDER_NAME || "SEMAPHORE",
   });
 
-  const res = await fetch("https://api.semaphore.co/api/v4/messages", {
+  const res = await fetch("https://api.smsmobileapi.com/sendsms/", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: params,
   });
 
-  if (!res.ok) {
-    console.error("Semaphore SMS failed:", await res.text());
-    return;
+  const data = await res.json();
+  const delivered = res.ok && data?.result?.error === 0;
+
+  if (delivered) {
+    await supabaseAdmin
+      .from("batches")
+      .update({ status: "sms_sent" })
+      .eq("id", batch.id);
+  } else {
+    console.error("SMSMobileAPI failed:", JSON.stringify(data));
   }
 
-  await supabaseAdmin
-    .from("batches")
-    .update({ status: "sms_sent" })
-    .eq("id", batch.id);
+  return { message, delivered, mocked: false };
 }
