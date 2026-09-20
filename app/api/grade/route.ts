@@ -12,7 +12,7 @@ async function callCVModel(imageBuffer: Buffer) {
   const res = await fetch(process.env.CV_MODEL_ENDPOINT!, {
     method: "POST",
     headers: { "Content-Type": "application/octet-stream" },
-    body: imageBuffer,
+    body: new Uint8Array(imageBuffer),
   });
   if (!res.ok) throw new Error(`CV model error: ${res.status}`);
   return res.json();
@@ -47,9 +47,9 @@ export async function POST(req: NextRequest) {
 
     if (error) throw error;
 
-    await sendGradeSms(farmerId, batch);
+    const smsResult = await sendGradeSms(farmerId, batch);
 
-    return NextResponse.json({ success: true, batch });
+    return NextResponse.json({ success: true, batch, sms: smsResult });
   } catch (err: any) {
     console.error(err);
     return NextResponse.json({ error: err.message }, { status: 500 });
