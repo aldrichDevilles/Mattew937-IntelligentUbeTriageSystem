@@ -24,7 +24,7 @@ import {
 
 export default function Home() {
   return (
-    <div className="flex flex-col min-h-screen bg-zinc-50 dark:bg-zinc-950 font-sans text-zinc-900 dark:text-zinc-100">
+    <div className="flex flex-col min-h-screen bg-background text-foreground font-sans">
       <Navbar />
 
       <main className="flex-1">
@@ -35,13 +35,13 @@ export default function Home() {
           <div className="absolute top-0 left-0 w-full h-screen flex flex-col items-center justify-center space-y-6 text-center px-6 z-10">
             <Badge
               variant="secondary"
-              className="bg-violet-500/10 text-violet-300 hover:bg-violet-500/20 border-violet-500/20 mb-4"
+              className="bg-mauve-500/10 text-mauve-300 hover:bg-mauve-500/20 border-mauve-500/20 mb-4"
             >
               UbeRated: Intelligent Ube Triage System
             </Badge>
             <h1 className="text-5xl font-extrabold tracking-tight sm:text-7xl text-white drop-shadow-lg">
               The New Standard <br></br>for{" "}
-              <span className="text-violet-400">Philippine Ube.</span>
+              <span className="text-mauve-400">Philippine Ube.</span>
             </h1>
             <p className="max-w-2xl text-lg sm:text-xl text-zinc-200 leading-relaxed drop-shadow-md">
               Rapid AI farm-gate phenotyping to preserve planting stock and
@@ -52,7 +52,7 @@ export default function Home() {
                 render={<Link href="/terminal" />}
                 nativeButton={false}
                 size="lg"
-                className="bg-violet-600 hover:bg-violet-700 text-white border-none h-12 px-8 text-base"
+                className="bg-mauve-600 hover:bg-mauve-700 text-white border-none h-12 px-8 text-base"
               >
                 Open Grading Terminal
               </Button>
@@ -71,7 +71,7 @@ export default function Home() {
         </section>
 
         {/* SECTION WRAPPER FOR CONTENT BELOW HERO */}
-        <div className="relative z-20 bg-zinc-50 dark:bg-zinc-950">
+        <div className="relative z-20 bg-background">
           {/* 2. THE CRISIS (Problem-Solution Fit) */}
           <section className="py-24 px-6 max-w-6xl mx-auto">
             <div className="text-center mb-16">
@@ -85,7 +85,7 @@ export default function Home() {
             </div>
 
             <div className="grid md:grid-cols-2 gap-8">
-              <Card className="bg-zinc-100 dark:bg-zinc-900/50 border-zinc-200 dark:border-zinc-800">
+              <Card className="bg-muted/50 border-zinc-200 dark:border-zinc-800">
                 <CardHeader>
                   <TrendingDown className="w-10 h-10 text-red-500 mb-4" />
                   <CardTitle className="text-xl">The Current Reality</CardTitle>
@@ -98,9 +98,9 @@ export default function Home() {
                 </CardHeader>
               </Card>
 
-              <Card className="bg-violet-50 dark:bg-violet-950/10 border-violet-200 dark:border-violet-900">
+              <Card className="bg-mauve-50 dark:bg-mauve-950/10 border-mauve-200 dark:border-mauve-900">
                 <CardHeader>
-                  <CheckCircle2 className="w-10 h-10 text-violet-600 dark:text-violet-500 mb-4" />
+                  <CheckCircle2 className="w-10 h-10 text-mauve-600 dark:text-mauve-500 mb-4" />
                   <CardTitle className="text-xl">
                     The UbeRated Intervention
                   </CardTitle>
@@ -116,7 +116,7 @@ export default function Home() {
           </section>
 
           {/* 3. THE TRIAGE PIPELINE (How It Works) */}
-          <section className="py-24 px-6 bg-zinc-100 dark:bg-zinc-900 border-y border-zinc-200 dark:border-zinc-800">
+          <section className="py-24 px-6 bg-muted border-y border-zinc-200 dark:border-zinc-800">
             <div className="max-w-6xl mx-auto">
               <h2 className="text-3xl font-bold tracking-tight text-center mb-16">
                 The Edge Triage Pipeline
@@ -127,21 +127,21 @@ export default function Home() {
 
                 <PipelineStep
                   icon={
-                    <Camera className="w-6 h-6 text-violet-600 dark:text-violet-400" />
+                    <Camera className="w-6 h-6 text-mauve-600 dark:text-mauve-400" />
                   }
                   title="1. Standardized Scan"
                   description="Agents capture a cross-section photo inside a low-cost, controlled lightbox directly at the farm gate."
                 />
                 <PipelineStep
                   icon={
-                    <BrainCircuit className="w-6 h-6 text-violet-600 dark:text-violet-400" />
+                    <BrainCircuit className="w-6 h-6 text-mauve-600 dark:text-mauve-400" />
                   }
                   title="2. AI Grading"
                   description="The vision model evaluates anthocyanin density and internal rot, outputting a precise commercial grade."
                 />
                 <PipelineStep
                   icon={
-                    <Database className="w-6 h-6 text-violet-600 dark:text-violet-400" />
+                    <Database className="w-6 h-6 text-mauve-600 dark:text-mauve-400" />
                   }
                   title="3. Instant Ledger"
                   description="Data is pushed to a live inventory feed. Farmers receive immediate Twilio SMS payout receipts."
@@ -157,8 +157,8 @@ export default function Home() {
             </h2>
             <div className="grid md:grid-cols-2 gap-8">
               <Card className="group overflow-hidden border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950">
-                <div className="h-48 bg-zinc-100 dark:bg-zinc-900 flex items-center justify-center border-b border-zinc-200 dark:border-zinc-800">
-                  <Sprout className="w-16 h-16 text-zinc-400 group-hover:text-violet-500 transition-colors" />
+                <div className="h-48 bg-muted flex items-center justify-center border-b border-zinc-200 dark:border-zinc-800">
+                  <Sprout className="w-16 h-16 text-zinc-400 group-hover:text-mauve-500 transition-colors" />
                 </div>
                 <CardHeader>
                   <CardTitle>Co-op Grading Terminal</CardTitle>
@@ -171,7 +171,7 @@ export default function Home() {
                     variant="link"
                     render={<Link href="/terminal" />}
                     nativeButton={false}
-                    className="p-0 h-auto text-violet-600 dark:text-violet-400 mt-4 justify-start"
+                    className="p-0 h-auto text-mauve-600 dark:text-mauve-400 mt-4 justify-start"
                   >
                     Launch Terminal <ArrowRight className="w-4 h-4 ml-1" />
                   </Button>
@@ -180,7 +180,7 @@ export default function Home() {
                     variant="link"
                     render={<Link href="/dashboard" />}
                     nativeButton={false}
-                    className="p-0 h-auto text-violet-600 dark:text-violet-400 mt-4 justify-start"
+                    className="p-0 h-auto text-mauve-600 dark:text-mauve-400 mt-4 justify-start"
                   >
                     View Ledger <ArrowRight className="w-4 h-4 ml-1" />
                   </Button>
@@ -189,12 +189,12 @@ export default function Home() {
 
               <Card className="group overflow-hidden border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 relative">
                 <div className="absolute top-4 right-4 z-10">
-                  <Badge className="bg-violet-600 hover:bg-violet-700 text-white text-xs px-2 py-1">
+                  <Badge className="bg-mauve-600 hover:bg-mauve-700 text-white text-xs px-2 py-1">
                     DaaS & B2B Integration Q4
                   </Badge>
                 </div>
-                <div className="h-48 bg-zinc-100 dark:bg-zinc-900 flex items-center justify-center border-b border-zinc-200 dark:border-zinc-800">
-                  <LineChart className="w-16 h-16 text-zinc-400 group-hover:text-violet-500 transition-colors" />
+                <div className="h-48 bg-muted flex items-center justify-center border-b border-zinc-200 dark:border-zinc-800">
+                  <LineChart className="w-16 h-16 text-zinc-400 group-hover:text-mauve-500 transition-colors" />
                 </div>
                 <CardHeader>
                   <CardTitle>Global Inventory Ledger</CardTitle>
@@ -206,7 +206,7 @@ export default function Home() {
                   <Button
                     variant="link"
                     render={<Link href="/dashboard" />}
-                    className="p-0 h-auto text-violet-600 dark:text-violet-400 mt-4 justify-start"
+                    className="p-0 h-auto text-mauve-600 dark:text-mauve-400 mt-4 justify-start"
                   >
                     View Ledger <ArrowRight className="w-4 h-4 ml-1" />
                   </Button>
@@ -216,27 +216,27 @@ export default function Home() {
           </section>
 
           {/* 5. VALIDATION & EVIDENCE */}
-          <section className="py-20 px-6 bg-violet-600 dark:bg-violet-900 text-white text-center">
+          <section className="py-20 px-6 bg-mauve-600 dark:bg-mauve-900 text-white text-center">
             <div className="max-w-4xl mx-auto">
-              <h2 className="text-sm font-bold tracking-widest uppercase text-violet-200 mb-4">
+              <h2 className="text-sm font-bold tracking-widest uppercase text-mauve-200 mb-4">
                 Evidence Beats Claim
               </h2>
               <div className="grid sm:grid-cols-3 gap-8 mt-8">
                 <div>
                   <div className="text-5xl font-black mb-2">20</div>
-                  <div className="text-violet-200 text-sm">
+                  <div className="text-mauve-200 text-sm">
                     Tuber Cross-Sections Validated
                   </div>
                 </div>
                 <div>
                   <div className="text-5xl font-black mb-2">94%</div>
-                  <div className="text-violet-200 text-sm">
+                  <div className="text-mauve-200 text-sm">
                     Baseline Anthocyanin Accuracy
                   </div>
                 </div>
                 <div>
                   <div className="text-5xl font-black mb-2">&lt;1.5s</div>
-                  <div className="text-violet-200 text-sm">
+                  <div className="text-mauve-200 text-sm">
                     Average Edge Inference Latency
                   </div>
                 </div>
@@ -265,7 +265,7 @@ export default function Home() {
               <TeamMember name="Anton" role="Business Analyst" />
             </div>
 
-            <div className="bg-zinc-100 dark:bg-zinc-900/50 rounded-xl p-8 max-w-3xl mx-auto border border-zinc-200 dark:border-zinc-800">
+            <div className="bg-muted/50 rounded-xl p-8 max-w-3xl mx-auto border border-zinc-200 dark:border-zinc-800">
               <h3 className="text-xl font-bold mb-2">Immediate Milestone</h3>
               <p className="text-zinc-600 dark:text-zinc-400 mb-6">
                 Executing a 30-day post-hackathon pilot trial with select
@@ -273,8 +273,10 @@ export default function Home() {
                 DaaS platform.
               </p>
               <Button
+                render={<a href="mailto:team@uberated.com" />}
+                nativeButton={false}
                 size="lg"
-                className="bg-violet-600 hover:bg-violet-700 text-white"
+                className="bg-mauve-600 hover:bg-mauve-700 text-white"
               >
                 Contact the Team
               </Button>
@@ -298,7 +300,7 @@ function PipelineStep({
   description: string;
 }) {
   return (
-    <div className="relative z-10 flex flex-col items-center text-center bg-zinc-100 dark:bg-zinc-900 pt-4">
+    <div className="relative z-10 flex flex-col items-center text-center bg-muted pt-4">
       <div className="w-16 h-16 rounded-full bg-white dark:bg-zinc-800 border-4 border-zinc-100 dark:border-zinc-900 flex items-center justify-center shadow-sm mb-6">
         {icon}
       </div>
@@ -314,7 +316,7 @@ function TeamMember({ name, role }: { name: string; role: string }) {
   return (
     <div className="p-4 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950">
       <div className="font-bold text-zinc-900 dark:text-zinc-100">{name}</div>
-      <div className="text-sm text-violet-600 dark:text-violet-400 mt-1">
+      <div className="text-sm text-mauve-600 dark:text-mauve-400 mt-1">
         {role}
       </div>
     </div>
