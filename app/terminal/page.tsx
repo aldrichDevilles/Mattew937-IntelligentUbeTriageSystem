@@ -31,7 +31,7 @@ export default function TerminalPage() {
           const data = await res.json();
 
           // Defensive check for the API response shape
-          const safeArray = Array.isArray(data) ? data : data?.data || [];
+          const safeArray = Array.isArray(data) ? data : data?.farmers || [];
           setFarmers(safeArray);
         }
       } catch (err) {
@@ -56,12 +56,12 @@ export default function TerminalPage() {
     setResult(null);
 
     const formData = new FormData();
-    formData.append("farmerId", selectedFarmer);
-    formData.append("volume", volume);
-    files.forEach((file) => formData.append("photos", file));
+    formData.append("farmer_id", selectedFarmer);
+    formData.append("volume_kg", volume);
+    files.forEach((file) => formData.append("images", file));
 
     try {
-      const res = await fetch("/api/scan", { method: "POST", body: formData });
+      const res = await fetch("/api/grade", { method: "POST", body: formData });
       const data = await res.json();
 
       if (data.error) {
