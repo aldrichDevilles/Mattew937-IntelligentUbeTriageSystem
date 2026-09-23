@@ -3,12 +3,6 @@ import { supabaseAdmin } from "../../../db/supabase";
 import { sendGradeSms } from "../../../lib/sms";
 import { gradeBatch, type UbeGrade } from "../../../lib/cv";
 
-/**
- * The CV module grades as seed / industrial / reject.
- * Your DB and sendGradeSms were built around letter grades ("A"), so we
- * map at the boundary and nothing downstream has to change.
- * TODO: confirm this mapping (and what sms.ts prints) with the team.
- */
 const LETTER_GRADE: Record<UbeGrade, string> = {
   seed: "A",
   industrial: "B",
@@ -19,25 +13,47 @@ export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
 
-    // Accepts several photos under "images" (a sample of ~3 tubers),
-    // and still accepts the old single "image" field.
-    const files = [
-      ...formData.getAll("images"),
-      ...formData.getAll("image"),
-    ].filter((f): f is File => f instanceof File && f.size > 0);
-    const farmerId = formData.get("farmer_id") as string;
-    const volumeKg = Number(formData.get("volume_kg"));
+    // 1. Extract the specific keys we defined in the new frontend FormData
+    const files = formData.getAll("photos").filter((f): f is File => f instanceof File && f.size > 0);
+    const farmerName = formData.get("farmerName") as string;
+    const phoneNumber = formData.get("phoneNumber") as string;
+    const volumeKg = Number(formData.get("volume"));
+    
+    // Note: If you want to store pricePerKilo, ensure your 'farmers' or 'batches' table has a column for it.
+    // const pricePerKilo = Number(formData.get("pricePerKilo"));
 
     if (files.length === 0) {
-      return NextResponse.json({ error: "No image provided" }, { status: 400 });
+      return NextResponse.json({ error: "No photos provided" }, { status: 400 });
     }
-    if (!farmerId || Number.isNaN(volumeKg)) {
+    
+    // 2. Validate the new text inputs instead of the old farmer_id
+    if (!farmerName || !phoneNumber || Number.isNaN(volumeKg)) {
       return NextResponse.json(
-        { error: "farmer_id and a numeric volume_kg are required" },
+        { error: "Farmer name, phone number, and a numeric volume are required" },
         { status: 400 },
       );
     }
 
+    // 3. CREATE THE FARMER FIRST
+    // We insert the new farmer and immediately return their generated row to get the ID
+    const { data: newFarmer, error: farmerError } = await supabaseAdmin
+      .from("farmers")
+      .insert({
+        name: farmerName,
+        phone_number: phoneNumber,
+      })
+      .select()
+      .single();
+
+    if (farmerError) {
+      console.error("Farmer Creation Error:", farmerError);
+      return NextResponse.json({ error: `DB Error: ${farmerError.message}` }, { status: 500 });
+    }
+
+    // Extract the newly generated UUID
+    const farmerId = newFarmer.id;
+
+    // 4. RUN THE VISION MODEL INFERENCE
     const images = await Promise.all(
       files.map(async (f) => ({
         name: f.name,
@@ -47,7 +63,9 @@ export async function POST(req: NextRequest) {
 
     const cv = await gradeBatch(images);
 
-    const { data: batch, error } = await supabaseAdmin
+    // 5. INSERT THE BATCH
+    // We now use the farmerId we just generated in step 3
+    const { data: batch, error: batchError } = await supabaseAdmin
       .from("batches")
       .insert({
         farmer_id: farmerId,
@@ -60,12 +78,14 @@ export async function POST(req: NextRequest) {
       .select()
       .single();
 
-    if (error) throw error;
+    if (batchError) {
+      console.error("Batch Creation Error:", batchError);
+      return NextResponse.json({ error: "Failed to log batch" }, { status: 500 });
+    }
 
+    // 6. SEND SMS RECEIPT
     const smsResult = await sendGradeSms(farmerId, batch);
 
-    // `cv` is returned for the scan terminal UI (per-tuber results, resample
-    // warning, mock-vs-real source). It isn't stored: no schema change needed.
     return NextResponse.json({ success: true, batch, sms: smsResult, cv });
   } catch (err: any) {
     console.error(err);
