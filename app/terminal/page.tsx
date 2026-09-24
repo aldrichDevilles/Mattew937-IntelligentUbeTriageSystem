@@ -25,6 +25,26 @@ export default function TerminalPage() {
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Fetch farmers on mount
+  useEffect(() => {
+    async function loadFarmers() {
+      try {
+        const res = await fetch("/api/farmers");
+        if (res.ok) {
+          const data = await res.json();
+
+          // Defensive check for the API response shape
+          const safeArray = Array.isArray(data) ? data : data?.farmers || [];
+          setFarmers(safeArray);
+        }
+      } catch (err) {
+        console.error("Failed to load farmers", err);
+        setFarmers([]); // Fallback on error
+      }
+    }
+    loadFarmers();
+  }, []);
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const selected = Array.from(e.target.files).slice(0, 3);
@@ -39,26 +59,12 @@ export default function TerminalPage() {
     setResult(null);
 
     const formData = new FormData();
-    formData.append("farmerName", farmerName);
-    formData.append("phoneNumber", phoneNumber);
-    formData.append("volume", volume);
-    formData.append("pricePerKilo", pricePerKilo);
-    files.forEach((file) => formData.append("photos", file));
+    formData.append("farmer_id", selectedFarmer);
+    formData.append("volume_kg", volume);
+    files.forEach((file) => formData.append("images", file));
 
     try {
       const res = await fetch("/api/grade", { method: "POST", body: formData });
-
-      // If the server returns a 500 error, read it as text so it doesn't crash the JSON parser
-      if (!res.ok) {
-        const errorText = await res.text();
-        console.error("Server Error:", errorText);
-        setError(
-          `Server Error ${res.status}: Check browser console for details.`,
-        );
-        setIsLoading(false);
-        return;
-      }
-
       const data = await res.json();
 
       if (data.error) {
