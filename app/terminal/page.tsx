@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Navbar } from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
 import {
@@ -10,7 +10,14 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
-import { AlertCircle, UploadCloud, CheckCircle2, MapPin } from "lucide-react";
+import {
+  AlertCircle,
+  UploadCloud,
+  CheckCircle2,
+  MapPin,
+  Camera,
+  X,
+} from "lucide-react";
 
 // Import the local JSON files directly into the client component
 import regionData from "./refregion.json";
@@ -33,6 +40,11 @@ export default function TerminalPage() {
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // --- Camera States & Refs ---
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+
   // 1. Regions are always available
   const availableRegions = (regionData as any).RECORDS;
 
@@ -50,10 +62,74 @@ export default function TerminalPage() {
       )
     : [];
 
+  // Safely stop the camera stream
+  const stopCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+    setIsCameraOpen(false);
+  };
+
+  // Turn off camera if user navigates away
+  useEffect(() => {
+    return () => stopCamera();
+  }, []);
+
+  const startCamera = async () => {
+    setIsCameraOpen(true);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment" }, // Prioritizes rear camera on mobile
+      });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+    } catch (err) {
+      console.error("Camera error:", err);
+      setError("Camera access denied or unavailable.");
+      setIsCameraOpen(false);
+    }
+  };
+
+  const capturePhoto = () => {
+    if (videoRef.current && files.length < 3) {
+      const canvas = document.createElement("canvas");
+      canvas.width = videoRef.current.videoWidth;
+      canvas.height = videoRef.current.videoHeight;
+      const ctx = canvas.getContext("2d");
+
+      if (ctx) {
+        ctx.drawImage(videoRef.current, 0, 0);
+        // Convert canvas drawing to a JPEG Blob, then to a File object
+        canvas.toBlob(
+          (blob) => {
+            if (blob) {
+              const newFile = new File([blob], `scan-${Date.now()}.jpg`, {
+                type: "image/jpeg",
+              });
+              setFiles((prev) => [...prev, newFile]);
+
+              // Auto-close camera if we hit the 3-photo max
+              if (files.length === 2) stopCamera();
+            }
+          },
+          "image/jpeg",
+          0.9,
+        );
+      }
+    }
+  };
+
+  const removeFile = (indexToRemove: number) => {
+    setFiles((prev) => prev.filter((_, idx) => idx !== indexToRemove));
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      const selected = Array.from(e.target.files).slice(0, 3);
-      setFiles(selected);
+      const selected = Array.from(e.target.files);
+      setFiles((prev) => [...prev, ...selected].slice(0, 3));
     }
   };
 
@@ -258,30 +334,106 @@ export default function TerminalPage() {
                 </div>
               </div>
 
-              {/* Image Upload */}
-              <div className="space-y-2">
+              {/* Image Upload & Camera Capture */}
+              <div className="space-y-4">
                 <label className="text-sm font-medium">
-                  Cross-Section Captures (Max 3)
+                  Cross-Section Captures ({files.length}/3)
                 </label>
-                <div className="border-2 border-dashed border-border rounded-lg p-6 flex flex-col items-center justify-center bg-muted/30">
-                  <UploadCloud className="h-8 w-8 text-muted-foreground mb-2" />
-                  <input
-                    type="file"
-                    multiple
-                    accept="image/*"
-                    onChange={handleFileChange}
-                    className="text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-violet-600 file:text-white hover:file:bg-violet-700"
-                  />
-                  <p className="text-xs text-muted-foreground mt-2">
-                    {files.length} of 3 photos selected
-                  </p>
-                </div>
+
+                {/* The Two Options (Hidden if camera is open or max files reached) */}
+                {!isCameraOpen && files.length < 3 && (
+                  <div className="flex gap-4">
+                    {/* Option 1: Standard File Upload */}
+                    <div className="relative flex-1">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="w-full flex gap-2"
+                      >
+                        <UploadCloud className="h-4 w-4" /> Upload Image
+                      </Button>
+                      <input
+                        type="file"
+                        multiple
+                        accept="image/*"
+                        onChange={handleFileChange}
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                      />
+                    </div>
+
+                    {/* Option 2: Live Camera Scan */}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={startCamera}
+                      className="flex-1 flex gap-2"
+                    >
+                      <Camera className="h-4 w-4" /> Scan Camera
+                    </Button>
+                  </div>
+                )}
+
+                {/* Live Camera Viewfinder */}
+                {isCameraOpen && (
+                  <div className="relative rounded-lg overflow-hidden bg-black aspect-video sm:aspect-4/3 flex items-center justify-center border border-border">
+                    <video
+                      ref={videoRef}
+                      autoPlay
+                      playsInline
+                      muted
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-4">
+                      <Button
+                        type="button"
+                        onClick={capturePhoto}
+                        className="bg-white text-black hover:bg-zinc-200 rounded-full font-bold px-8"
+                      >
+                        Capture
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        onClick={stopCamera}
+                        size="icon"
+                        className="rounded-full"
+                      >
+                        <X className="h-5 w-5" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Thumbnail Preview Grid */}
+                {files.length > 0 && (
+                  <div className="grid grid-cols-3 gap-4 pt-2">
+                    {files.map((file, idx) => (
+                      <div
+                        key={idx}
+                        className="relative aspect-square rounded-lg border border-border overflow-hidden group"
+                      >
+                        <img
+                          src={URL.createObjectURL(file)}
+                          alt={`Scan ${idx + 1}`}
+                          className="w-full h-full object-cover"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeFile(idx)}
+                          className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <Button
                 type="submit"
                 className="w-full bg-violet-600 hover:bg-violet-700 text-white"
-                disabled={isLoading || files.length === 0}
+                disabled={isLoading || files.length === 0 || isCameraOpen}
               >
                 {isLoading
                   ? "Running Triage Inference..."
