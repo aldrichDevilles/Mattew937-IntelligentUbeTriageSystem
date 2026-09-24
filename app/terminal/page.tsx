@@ -180,6 +180,32 @@ export default function TerminalPage() {
 
   // Helper to shrink massive mobile photos before uploading.
   // Falls back to the original file if anything goes wrong.
+  // --- Auto-Format Phone Number ---
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // 1. Instantly strip any letters, spaces, or special characters (except +)
+    let val = e.target.value.replace(/[^\d+]/g, "");
+
+    // 2. Auto-correct common Philippine prefixes to +639
+    if (val.startsWith("09")) {
+      val = "+639" + val.substring(2);
+    } else if (val.startsWith("639")) {
+      val = "+639" + val.substring(3);
+    } else if (val.startsWith("9")) {
+      val = "+639" + val.substring(1);
+    } else if (val.length > 0 && !val.startsWith("+")) {
+      // Force a plus sign if they start typing something else
+      val = "+" + val;
+    }
+
+    // 3. Restrict length to exactly 13 characters (+639123456789)
+    if (val.length > 13) {
+      val = val.slice(0, 13);
+    }
+
+    setPhoneNumber(val);
+  };
+
+  // Helper to shrink massive mobile photos before uploading
   const compressImage = async (file: File): Promise<File> => {
     return new Promise((resolve) => {
       const reader = new FileReader();
@@ -193,7 +219,6 @@ export default function TerminalPage() {
           let width = img.width;
           let height = img.height;
 
-          // Only shrink if the image is actually larger than the max width
           if (width > MAX_WIDTH) {
             height = Math.round((height * MAX_WIDTH) / width);
             width = MAX_WIDTH;
@@ -211,7 +236,7 @@ export default function TerminalPage() {
               else resolve(file);
             },
             "image/jpeg",
-            0.7, // 70% quality JPEG
+            0.7,
           );
         };
         img.src = e.target?.result as string;
@@ -225,13 +250,65 @@ export default function TerminalPage() {
     setError(null);
     setResult(null);
 
-    // Guard against an incomplete location selection
-    if (!brgyName || !munName || !regionName) {
-      setError("Please select region, municipality, and barangay.");
-      return;
+    // --- DATA VALIDATION ---
+    if (!farmerName.trim()) {
+      setIsLoading(false);
+      return setError("Farmer name is required.");
+    }
+    if (phoneNumber.length !== 13 || !phoneNumber.startsWith("+639")) {
+      setIsLoading(false);
+      return setError(
+        "Please enter a valid 11-digit Philippine mobile number.",
+      );
+    }
+    if (!selectedRegCode || !selectedCitymunCode || !selectedBrgyCode) {
+      setIsLoading(false);
+      return setError("Please complete the farm origin location dropdowns.");
+    }
+    if (Number(volume) <= 0) {
+      setIsLoading(false);
+      return setError("Batch volume must be greater than 0 kg.");
+    }
+    if (Number(pricePerKilo) <= 0) {
+      setIsLoading(false);
+      return setError("Price per kilo must be greater than ₱0.");
+    }
+    if (files.length === 0) {
+      setIsLoading(false);
+      return setError("Please provide at least one cross-section scan.");
     }
 
-    setIsLoading(true);
+    // Look up the actual names using the selected codes for the database string
+    const regionName =
+      (regionData as any).RECORDS.find(
+        (r: any) => r.regCode === selectedRegCode,
+      )?.regDesc || "";
+
+    const munName =
+      (citymunData as any).RECORDS.find(
+        (m: any) => m.citymunCode === selectedCitymunCode,
+      )?.citymunDesc || "";
+
+    const brgyName =
+      (brgyData as any).RECORDS.find(
+        (b: any) => b.brgyCode === selectedBrgyCode,
+      )?.brgyDesc || "";
+
+    // Stitch the location back into the required DB format
+    const formattedLocation = `Brgy. ${brgyName}, ${munName}, ${regionName}`;
+
+    const formData = new FormData();
+    formData.append("farmerName", farmerName);
+    formData.append("phoneNumber", phoneNumber);
+    formData.append("volume", volume);
+    formData.append("pricePerKilo", pricePerKilo);
+    formData.append("location", formattedLocation);
+
+    // Compress all files in parallel before attaching to the payload
+    const compressedFiles = await Promise.all(
+      files.map((file) => compressImage(file)),
+    );
+    compressedFiles.forEach((file) => formData.append("photos", file));
 
     try {
       const formData = new FormData();
@@ -314,9 +391,9 @@ export default function TerminalPage() {
                     type="tel"
                     required
                     className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
-                    placeholder="e.g. +639995789711"
+                    placeholder="e.g. 09995789711 or +63..."
                     value={phoneNumber}
-                    onChange={(e) => setPhoneNumber(e.target.value)}
+                    onChange={handlePhoneChange}
                   />
                 </div>
               </div>

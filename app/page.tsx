@@ -99,13 +99,13 @@ export default function Home() {
               </Button>
 
               <Button
-                render={<Link href="/dashboard" />}
+                render={<Link href="/marketplace" />}
                 nativeButton={false}
                 variant="outline"
                 size="lg"
                 className="bg-zinc-950/40 text-white hover:text-purple-500 hover:bg-zinc-900/60 border-zinc-700 backdrop-blur-sm h-12 px-8 text-base transition-transform hover:scale-105"
               >
-                View Scanned Inventory
+                Shop in Marketplace
               </Button>
             </motion.div>
           </div>
