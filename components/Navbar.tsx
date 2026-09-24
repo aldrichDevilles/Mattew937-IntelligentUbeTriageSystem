@@ -52,6 +52,16 @@ export function Navbar() {
                 Inventory Ledger
               </NavigationMenuLink>
             </NavigationMenuItem>
+
+            {/* Added Marketplace Desktop Link */}
+            <NavigationMenuItem>
+              <NavigationMenuLink
+                render={<Link href="/marketplace" />}
+                className={navigationMenuTriggerStyle()}
+              >
+                Marketplace
+              </NavigationMenuLink>
+            </NavigationMenuItem>
           </NavigationMenuList>
         </NavigationMenu>
       </div>
@@ -92,6 +102,15 @@ export function Navbar() {
               >
                 Inventory Ledger
               </Link>
+
+              {/* Added Marketplace Mobile Link */}
+              <Link
+                href="/marketplace"
+                className="text-lg font-medium text-foreground hover:text-primary transition-colors"
+              >
+                Marketplace
+              </Link>
+
               <div className="mt-2 pt-6 border-t border-border">
                 <Button
                   render={<Link href="/terminal" />}
