@@ -513,26 +513,28 @@ export default function TerminalPage() {
               </div>
             </CardHeader>
             <CardContent className="space-y-6 pt-4">
-              <div className="grid grid-cols-3 gap-4">
-                <div className="bg-background p-4 rounded-lg border border-border text-center">
-                  <p className="text-sm text-muted-foreground mb-1">Grade</p>
-                  <p className="text-3xl font-black text-violet-600">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+                <div className="bg-background p-3 sm:p-4 rounded-lg border border-border text-center flex flex-col justify-center">
+                  <p className="text-xs sm:text-sm text-muted-foreground mb-1">
+                    Grade
+                  </p>
+                  <p className="text-2xl sm:text-3xl font-black text-violet-600">
                     {result.batch?.grade}
                   </p>
                 </div>
-                <div className="bg-background p-4 rounded-lg border border-border text-center">
-                  <p className="text-sm text-muted-foreground mb-1">
+                <div className="bg-background p-3 sm:p-4 rounded-lg border border-border text-center flex flex-col justify-center">
+                  <p className="text-xs sm:text-sm text-muted-foreground mb-1">
                     Pigment Score
                   </p>
-                  <p className="text-3xl font-black text-violet-600">
+                  <p className="text-2xl sm:text-3xl font-black text-violet-600">
                     {result.cv?.pigmentScore}
                   </p>
                 </div>
-                <div className="bg-background p-4 rounded-lg border border-border text-center">
-                  <p className="text-sm text-muted-foreground mb-1">
+                <div className="bg-background p-3 sm:p-4 rounded-lg border border-border text-center flex flex-col justify-center">
+                  <p className="text-xs sm:text-sm text-muted-foreground mb-1">
                     Classification
                   </p>
-                  <p className="text-3xl font-black text-violet-600">
+                  <p className="text-xl sm:text-3xl font-black text-violet-600 leading-tight">
                     {result.batch?.grade === "A"
                       ? "Seed"
                       : result.batch?.grade === "B"

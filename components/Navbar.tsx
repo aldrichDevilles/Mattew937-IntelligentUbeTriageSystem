@@ -77,9 +77,9 @@ export function Navbar() {
               </Button>
             }
           />
-          <SheetContent side="right" className="w-[300px] sm:w-[400px]">
+          <SheetContent side="right" className="w-75 sm:w-100">
             <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
-            <nav className="flex flex-col gap-4 mt-8">
+            <nav className="flex flex-col gap-6 p-6 mt-6">
               <Link
                 href="/terminal"
                 className="text-lg font-medium text-foreground hover:text-primary transition-colors"
@@ -92,7 +92,7 @@ export function Navbar() {
               >
                 Inventory Ledger
               </Link>
-              <div className="mt-4 pt-4 border-t border-border">
+              <div className="mt-2 pt-6 border-t border-border">
                 <Button
                   render={<Link href="/terminal" />}
                   nativeButton={false}
