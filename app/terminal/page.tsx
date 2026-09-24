@@ -19,6 +19,15 @@ const TIER_LABEL: Record<string, string> = {
   reject: "Below standard",
 };
 
+const DEFECT_LABEL: Record<string, string> = {
+  rot_suspect: "Possible rot, check by eye",
+  rot: "Rot",
+  browning: "Browning",
+  pale_flesh: "Pale flesh",
+  not_ube: "Not ube",
+  damage: "Damage",
+};
+
 export default function TerminalPage() {
   const [farmerName, setFarmerName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
@@ -26,7 +35,6 @@ export default function TerminalPage() {
   const [pricePerKilo, setPricePerKilo] = useState("");
 
   const [files, setFiles] = useState<File[]>([]);
-  const [wholeFiles, setWholeFiles] = useState<File[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
@@ -35,12 +43,6 @@ export default function TerminalPage() {
     if (e.target.files) {
       const selected = Array.from(e.target.files).slice(0, 3);
       setFiles(selected);
-    }
-  };
-
-  const handleWholeFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      setWholeFiles(Array.from(e.target.files).slice(0, 3));
     }
   };
 
@@ -56,7 +58,6 @@ export default function TerminalPage() {
     formData.append("volume", volume);
     formData.append("pricePerKilo", pricePerKilo);
     files.forEach((file) => formData.append("photos", file));
-    wholeFiles.forEach((file) => formData.append("whole_photos", file));
 
     try {
       const res = await fetch("/api/grade", { method: "POST", body: formData });
@@ -87,6 +88,8 @@ export default function TerminalPage() {
   };
 
   const tubers: any[] = result?.cv?.tubers ?? [];
+  const reviewTubers = tubers.filter((t) => t.needsReview);
+  const needsReview = reviewTubers.length > 0;
   const sproutTubers: any[] = result?.sprouts?.tubers ?? [];
   const isMock = result?.cv?.source === "mock";
   const smsText: string | undefined = result?.sms?.message ?? result?.smsText;
@@ -184,26 +187,6 @@ export default function TerminalPage() {
                 </div>
               </div>
 
-              {/* Optional whole-tuber upload (experimental sprout check) */}
-              <div className="space-y-2">
-                <label className="text-sm font-medium">
-                  Whole-Tuber Photos (optional, max 3)
-                </label>
-                <div className="border-2 border-dashed border-border rounded-lg p-4 flex flex-col items-center justify-center bg-muted/20">
-                  <input
-                    type="file"
-                    multiple
-                    accept="image/*"
-                    onChange={handleWholeFileChange}
-                    className="text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-zinc-700 file:text-white hover:file:bg-zinc-800"
-                  />
-                  <p className="text-xs text-muted-foreground mt-2">
-                    Used for the experimental sprout check only. It does not
-                    change the grade. {wholeFiles.length} selected.
-                  </p>
-                </div>
-              </div>
-
               <Button
                 type="submit"
                 className="w-full bg-violet-600 hover:bg-violet-700 text-white"
@@ -227,20 +210,23 @@ export default function TerminalPage() {
 
         {result?.cv?.needsResample && (
           <div className="bg-amber-500/10 border border-amber-500/20 text-amber-600 p-4 rounded-lg flex items-start gap-3">
-            <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
             <p className="text-sm font-medium">
-              Photos disagree, please rescan the batch.
+              {needsReview
+                ? `${reviewTubers.length} of ${tubers.length} photo(s) flagged as possible rot. Check the tuber by eye before confirming the grade.`
+                : "Photos disagree, please rescan the batch."}
             </p>
           </div>
         )}
 
-        {result && !result.cv?.needsResample && (
+        {result && (!result.cv?.needsResample || needsReview) && (
           <Card className="border-border bg-muted/10">
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-xl flex items-center gap-2">
-                  <CheckCircle2 className="text-green-500 h-5 w-5" /> Analysis
-                  Complete!
+                  <CheckCircle2 className="text-green-500 h-5 w-5" />{" "}
+                  {needsReview
+                    ? "Analysis complete, review needed"
+                    : "Analysis Complete!"}
                 </CardTitle>
                 <Badge
                   variant="outline"
@@ -340,9 +326,13 @@ export default function TerminalPage() {
                               <Badge
                                 key={d}
                                 variant="outline"
-                                className="border-red-500/40 text-red-600 text-xs"
+                                className={
+                                  d === "rot_suspect"
+                                    ? "border-amber-500/50 text-amber-600 text-xs"
+                                    : "border-red-500/40 text-red-600 text-xs"
+                                }
                               >
-                                {d.replace("_", " ")}
+                                {DEFECT_LABEL[d] ?? d.replace(/_/g, " ")}
                               </Badge>
                             ))
                           ) : (
@@ -351,6 +341,12 @@ export default function TerminalPage() {
                             </span>
                           )}
                         </div>
+                        {typeof t.rotProbability === "number" && (
+                          <p className="text-[11px] text-center text-muted-foreground">
+                            Rot probability {Math.round(t.rotProbability * 100)}
+                            %
+                          </p>
+                        )}
                       </div>
                     );
                   })}

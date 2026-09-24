@@ -55,6 +55,7 @@ function classifyCvError(err: unknown): { status: number; message: string } {
   };
   const msg = e?.message ?? "";
   const code = e?.cause?.code ?? "";
+  console.error("[cv error]", { status: e?.status, code, msg, err });
 
   // Python returned 400: an image could not be decoded
   if (e?.status === 400 || /\b400\b|decode/i.test(msg)) {
