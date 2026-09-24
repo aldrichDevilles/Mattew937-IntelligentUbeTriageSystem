@@ -10,7 +10,7 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, MapPin, ImageIcon } from "lucide-react";
 
 export default function DashboardPage() {
   const [batches, setBatches] = useState<any[]>([]);
@@ -49,16 +49,18 @@ export default function DashboardPage() {
       if (res.ok) {
         const payload = await res.json();
 
-        // 1. Extract the array from the specific 'batches' key Gift used
+        // 1. Extract the array from the specific 'batches' key
         const rawBatches = payload?.batches || [];
 
         // 2. Map the Supabase database columns to the camelCase props your UI expects
         const formattedBatches = rawBatches.map((b: any) => ({
-          time: b.created_at, // Maps Supabase timestamp to UI 'time'
-          farmerName: b.farmers?.name || "Unknown Farmer", // Flattens the joined table
+          time: b.created_at,
+          farmerName: b.farmers?.name || "Unknown Farmer",
           volume_kg: b.volume_kg,
           grade: b.grade,
-          pigmentScore: b.pigment_score || b.pigmentScore, // Accounts for snake_case or camelCase
+          anthocyanin_score: b.anthocyanin_score || b.anthocyanin_score,
+          imageUrl: b.image_url,
+          location: b.location || "Location unavailable",
         }));
 
         setBatches(formattedBatches);
@@ -70,6 +72,7 @@ export default function DashboardPage() {
       setIsPolling(false);
     }
   };
+
   // Poll every 5 seconds
   useEffect(() => {
     fetchBatches(); // Initial fetch
@@ -80,7 +83,7 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
       <Navbar />
-      <main className="flex-1 p-6 max-w-6xl mx-auto w-full space-y-8">
+      <main className="flex-1 p-6 max-w-7xl mx-auto w-full space-y-8">
         <Card className="border-border">
           <CardHeader className="flex flex-row items-center justify-between pb-4">
             <div>
@@ -103,10 +106,12 @@ export default function DashboardPage() {
               <table className="w-full text-sm text-left">
                 <thead className="bg-muted/50 text-muted-foreground text-xs uppercase">
                   <tr>
+                    <th className="px-4 py-3 font-medium">Scan</th>
                     <th className="px-4 py-3 font-medium">Time</th>
+                    <th className="px-4 py-3 font-medium">Location</th>
                     <th className="px-4 py-3 font-medium">Farmer</th>
                     <th className="px-4 py-3 font-medium">Volume</th>
-                    <th className="px-4 py-3 font-medium">Pigment Score</th>
+                    <th className="px-4 py-3 font-medium">Score</th>
                     <th className="px-4 py-3 font-medium">Classification</th>
                   </tr>
                 </thead>
@@ -114,7 +119,7 @@ export default function DashboardPage() {
                   {batches.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={5}
+                        colSpan={7}
                         className="px-4 py-8 text-center text-muted-foreground"
                       >
                         Waiting for terminal data...
@@ -128,23 +133,65 @@ export default function DashboardPage() {
                           key={idx}
                           className="bg-background hover:bg-muted/20 transition-colors"
                         >
-                          <td className="px-4 py-3 text-muted-foreground">
+                          {/* Image Column */}
+                          <td className="px-4 py-3">
+                            {batch.imageUrl ? (
+                              <img
+                                src={batch.imageUrl}
+                                alt={`Batch from ${batch.farmerName}`}
+                                className="h-10 w-10 rounded-md object-cover border border-border"
+                              />
+                            ) : (
+                              <div className="h-10 w-10 rounded-md bg-muted flex items-center justify-center border border-border">
+                                <ImageIcon className="h-4 w-4 text-muted-foreground" />
+                              </div>
+                            )}
+                          </td>
+
+                          {/* Time Column */}
+                          <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
                             {new Date(batch.time).toLocaleDateString([], {
+                              month: "short",
+                              day: "numeric",
+                            })}{" "}
+                            {new Date(batch.time).toLocaleTimeString([], {
                               hour: "2-digit",
                               minute: "2-digit",
                             })}
                           </td>
+
+                          {/* Location Column */}
+                          <td className="px-4 py-3 text-muted-foreground">
+                            <div className="flex items-center gap-1.5">
+                              <MapPin className="h-3.5 w-3.5 shrink-0" />
+                              <span className="truncate max-w-[150px]">
+                                {batch.location}
+                              </span>
+                            </div>
+                          </td>
+
+                          {/* Farmer Column */}
                           <td className="px-4 py-3 font-medium">
                             {batch.farmerName}
                           </td>
+
+                          {/* Volume Column */}
                           <td className="px-4 py-3">{batch.volume_kg} kg</td>
-                          <td className="px-4 py-3 font-mono">{batch.grade}</td>
+
+                          {/* Pigment Score Column */}
+                          <td className="px-4 py-3 font-mono">
+                            {batch.anthocyanin_score
+                              ? batch.anthocyanin_score.toFixed(1)
+                              : "--"}
+                          </td>
+
+                          {/* Classification Column */}
                           <td className="px-4 py-3">
                             <Badge
                               variant="outline"
                               className={gradeStyle.color}
                             >
-                              {gradeStyle.label}
+                              {gradeStyle.label} ({batch.grade})
                             </Badge>
                           </td>
                         </tr>
