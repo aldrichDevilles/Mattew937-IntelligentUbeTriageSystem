@@ -25,6 +25,8 @@ def make_slice(
     dL: float = 0.0,            # exposure shift added to the whole image
     brown: float = 0.0,         # fraction of the core covered by a browning blotch
     rot: float = 0.0,           # fraction of the core covered by a very dark patch
+    sprouts: int = 0,           # number of green sprouts extending outward from the skin
+    sprout_len: int = 25,       # average length of sprouts in pixels
     orange: bool = False,       # orange-flesh lookalike (e.g. sweet potato)
     radius: int = 150,
     center: tuple = (320, 240),
@@ -65,6 +67,43 @@ def make_slice(
     blotch(brown, (45, 8, 18))
     blotch(rot, (14, 4, 4))
 
+    # Sprouts extending outward from the outer skin (greenish hue in LAB: L~50, a*~-35, b*~30)
+    if sprouts > 0:
+        sprout_mask = np.zeros((H, W), np.uint8)
+        angles = np.linspace(0, 2 * np.pi, sprouts, endpoint=False) + rng.uniform(-0.2, 0.2, sprouts)
+        
+        # Ellipse rotation angle is 15 deg in ellipse drawing above
+        rot_rad = np.radians(15)
+        cos_a, sin_a = np.cos(rot_rad), np.sin(rot_rad)
+
+        for ang in angles:
+            # Elliptical boundary coordinates
+            rx = axes_outer[0] * np.cos(ang)
+            ry = axes_outer[1] * np.sin(ang)
+            
+            # Rotate boundary point by ellipse angle
+            sx = int(cx + (rx * cos_a - ry * sin_a))
+            sy = int(cy + (rx * sin_a + ry * cos_a))
+
+            # Direction outward from center
+            dx = sx - cx
+            dy = sy - cy
+            norm = np.hypot(dx, dy)
+            if norm == 0:
+                continue
+            ux, uy = dx / norm, dy / norm
+
+            length = int(sprout_len * rng.uniform(0.8, 1.3))
+            ex = int(sx + ux * length)
+            ey = int(sy + uy * length)
+
+            # Draw green sprout shoot & tip
+            cv2.line(sprout_mask, (sx, sy), (ex, ey), 255, thickness=int(rng.integers(3, 7)))
+            cv2.circle(sprout_mask, (ex, ey), int(rng.integers(4, 9)), 255, -1)
+
+        # Apply sprout color (L, a*, b*) where green is negative a* and positive b*
+        lab[sprout_mask > 0] = (52, -38, 32)
+
     if highlight:
         hm = np.zeros((H, W), np.uint8)
         cv2.circle(hm, (cx - 40, cy - 30), 14, 255, -1)
@@ -101,6 +140,9 @@ SAMPLES = {
     "sack5_not_ube_orange.jpg": dict(orange=True, seed=10),
     "sack6_warm_cast.jpg": dict(t=0.90, cast=(4, 6), seed=11),
     "sack6_glare.jpg": dict(t=0.90, highlight=True, seed=12),
+    # Sprouted samples
+    "sack7_sprouted_mild.jpg": dict(t=0.85, sprouts=3, sprout_len=20, seed=13),
+    "sack7_sprouted_heavy.jpg": dict(t=0.80, sprouts=7, sprout_len=40, seed=14),
 }
 
 if __name__ == "__main__":
