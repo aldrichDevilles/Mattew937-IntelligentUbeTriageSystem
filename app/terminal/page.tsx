@@ -133,6 +133,44 @@ export default function TerminalPage() {
     }
   };
 
+  // Helper to shrink massive mobile photos before uploading
+  const compressImage = async (file: File): Promise<File> => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (e) => {
+        const img = new Image();
+        img.src = e.target?.result as string;
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          const MAX_WIDTH = 1200;
+          let width = img.width;
+          let height = img.height;
+
+          // Only shrink if the image is actually larger than the max width
+          if (width > MAX_WIDTH) {
+            height = Math.round((height * MAX_WIDTH) / width);
+            width = MAX_WIDTH;
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          ctx?.drawImage(img, 0, 0, width, height);
+
+          canvas.toBlob(
+            (blob) => {
+              if (blob)
+                resolve(new File([blob], file.name, { type: "image/jpeg" }));
+            },
+            "image/jpeg",
+            0.7, // 70% quality JPEG
+          );
+        };
+      };
+    });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -162,7 +200,11 @@ export default function TerminalPage() {
     formData.append("volume", volume);
     formData.append("pricePerKilo", pricePerKilo);
     formData.append("location", formattedLocation);
-    files.forEach((file) => formData.append("photos", file));
+    // Compress all files in parallel before attaching to the payload
+    const compressedFiles = await Promise.all(
+      files.map((file) => compressImage(file)),
+    );
+    compressedFiles.forEach((file) => formData.append("photos", file));
 
     try {
       const res = await fetch("/api/grade", { method: "POST", body: formData });
