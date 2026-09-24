@@ -10,40 +10,45 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { AlertCircle, UploadCloud, CheckCircle2, Server } from "lucide-react";
+import { AlertCircle, UploadCloud, CheckCircle2, MapPin } from "lucide-react";
+
+// Import the local JSON files directly into the client component
+import regionData from "./refregion.json";
+import citymunData from "./refcitymun.json";
+import brgyData from "./refbrgy.json";
 
 export default function TerminalPage() {
-  // New combined state for farmer and batch details
   const [farmerName, setFarmerName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [volume, setVolume] = useState("");
   const [pricePerKilo, setPricePerKilo] = useState("");
+
+  // State for the exact administrative codes used to link the JSON files
+  const [selectedRegCode, setSelectedRegCode] = useState("");
+  const [selectedCitymunCode, setSelectedCitymunCode] = useState("");
+  const [selectedBrgyCode, setSelectedBrgyCode] = useState("");
 
   const [files, setFiles] = useState<File[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch farmers on mount
-  useEffect(() => {
-    async function loadFarmers() {
-      try {
-        const res = await fetch("/api/farmers");
-        if (res.ok) {
-          const data = await res.json();
+  // 1. Regions are always available
+  const availableRegions = (regionData as any).RECORDS;
 
-          // Defensive check for the API response shape
-          const safeArray = Array.isArray(data) ? data : data?.farmers || [];
-          setFarmers(safeArray);
-        }
-      } catch (err) {
-        console.error("Failed to load farmers", err);
-        setFarmers([]); // Fallback on error
-      }
-    }
-    loadFarmers();
-  }, []);
+  // 2. Filter municipalities where regDesc matches the selected regCode
+  const availableMunicipalities = selectedRegCode
+    ? (citymunData as any).RECORDS.filter(
+        (m: any) => m.regDesc === selectedRegCode,
+      )
+    : [];
+
+  // 3. Filter barangays where citymunCode matches the selected citymunCode
+  const availableBarangays = selectedCitymunCode
+    ? (brgyData as any).RECORDS.filter(
+        (b: any) => b.citymunCode === selectedCitymunCode,
+      )
+    : [];
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -58,13 +63,44 @@ export default function TerminalPage() {
     setError(null);
     setResult(null);
 
+    // Look up the actual names using the selected codes for the database string
+    const regionName =
+      (regionData as any).RECORDS.find(
+        (r: any) => r.regCode === selectedRegCode,
+      )?.regDesc || "";
+    const munName =
+      (citymunData as any).RECORDS.find(
+        (m: any) => m.citymunCode === selectedCitymunCode,
+      )?.citymunDesc || "";
+    const brgyName =
+      (brgyData as any).RECORDS.find(
+        (b: any) => b.brgyCode === selectedBrgyCode,
+      )?.brgyDesc || "";
+
+    // Stitch the location back into the required DB format
+    const formattedLocation = `Brgy. ${brgyName}, ${munName}, ${regionName}`;
+
     const formData = new FormData();
-    formData.append("farmer_id", selectedFarmer);
-    formData.append("volume_kg", volume);
-    files.forEach((file) => formData.append("images", file));
+    formData.append("farmerName", farmerName);
+    formData.append("phoneNumber", phoneNumber);
+    formData.append("volume", volume);
+    formData.append("pricePerKilo", pricePerKilo);
+    formData.append("location", formattedLocation);
+    files.forEach((file) => formData.append("photos", file));
 
     try {
       const res = await fetch("/api/grade", { method: "POST", body: formData });
+
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error("Server Error:", errorText);
+        setError(
+          `Server Error ${res.status}: Check browser console for details.`,
+        );
+        setIsLoading(false);
+        return;
+      }
+
       const data = await res.json();
 
       if (data.error) {
@@ -117,6 +153,75 @@ export default function TerminalPage() {
                     value={phoneNumber}
                     onChange={(e) => setPhoneNumber(e.target.value)}
                   />
+                </div>
+              </div>
+
+              {/* Cascading Location Dropdowns */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium flex items-center gap-2">
+                  <MapPin className="h-4 w-4 text-muted-foreground" />
+                  Farm Origin Location
+                </label>
+                <div className="grid sm:grid-cols-3 gap-4">
+                  {/* Region */}
+                  <select
+                    required
+                    value={selectedRegCode}
+                    onChange={(e) => {
+                      setSelectedRegCode(e.target.value);
+                      setSelectedCitymunCode(""); // Clear downstream selections
+                      setSelectedBrgyCode("");
+                    }}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background cursor-pointer"
+                  >
+                    <option value="" disabled>
+                      Select Region...
+                    </option>
+                    {availableRegions.map((reg: any) => (
+                      <option key={reg.regCode} value={reg.regCode}>
+                        {reg.regDesc}
+                      </option>
+                    ))}
+                  </select>
+
+                  {/* Municipality / City */}
+                  <select
+                    required
+                    disabled={!selectedRegCode}
+                    value={selectedCitymunCode}
+                    onChange={(e) => {
+                      setSelectedCitymunCode(e.target.value);
+                      setSelectedBrgyCode(""); // Clear downstream selection
+                    }}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background cursor-pointer disabled:opacity-50"
+                  >
+                    <option value="" disabled>
+                      Select City/Muni...
+                    </option>
+                    {availableMunicipalities.map((muni: any) => (
+                      <option key={muni.citymunCode} value={muni.citymunCode}>
+                        {muni.citymunDesc}
+                      </option>
+                    ))}
+                  </select>
+
+                  {/* Barangay */}
+                  <select
+                    required
+                    disabled={!selectedCitymunCode}
+                    value={selectedBrgyCode}
+                    onChange={(e) => setSelectedBrgyCode(e.target.value)}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background cursor-pointer disabled:opacity-50"
+                  >
+                    <option value="" disabled>
+                      Select Barangay...
+                    </option>
+                    {availableBarangays.map((brgy: any) => (
+                      <option key={brgy.brgyCode} value={brgy.brgyCode}>
+                        {brgy.brgyDesc}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
@@ -211,16 +316,12 @@ export default function TerminalPage() {
                   <CheckCircle2 className="text-green-500 h-5 w-5" /> Analysis
                   Complete!
                 </CardTitle>
-                {/* <Badge variant="outline" className="flex items-center gap-1">
-                  <Server className="h-3 w-3" /> {result.cv?.source || "Mock"}
-                </Badge> */}
               </div>
             </CardHeader>
             <CardContent className="space-y-6 pt-4">
               <div className="grid grid-cols-3 gap-4">
                 <div className="bg-background p-4 rounded-lg border border-border text-center">
                   <p className="text-sm text-muted-foreground mb-1">Grade</p>
-                  {/* Add .batch to access the database row */}
                   <p className="text-3xl font-black text-violet-600">
                     {result.batch?.grade}
                   </p>
@@ -229,7 +330,6 @@ export default function TerminalPage() {
                   <p className="text-sm text-muted-foreground mb-1">
                     Pigment Score
                   </p>
-                  {/* Add .cv to access the computer vision results */}
                   <p className="text-3xl font-black text-violet-600">
                     {result.cv?.pigmentScore}
                   </p>
@@ -251,7 +351,7 @@ export default function TerminalPage() {
               </div>
 
               <div className="grid sm:grid-cols-3 gap-4">
-                {result.cards?.map((card: any, idx: number) => (
+                {result.cv?.cards?.map((card: any, idx: number) => (
                   <div
                     key={idx}
                     className="bg-background rounded-lg border border-border p-3"
@@ -273,7 +373,7 @@ export default function TerminalPage() {
                   SMS Receipt Generated
                 </p>
                 <p className="text-sm font-mono text-green-400">
-                  {result.smsText}
+                  SMS sent to {phoneNumber}
                 </p>
               </div>
             </CardContent>

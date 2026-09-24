@@ -18,15 +18,13 @@ export async function POST(req: NextRequest) {
     const farmerName = formData.get("farmerName") as string;
     const phoneNumber = formData.get("phoneNumber") as string;
     const volumeKg = Number(formData.get("volume"));
-    
-    // Note: If you want to store pricePerKilo, ensure your 'farmers' or 'batches' table has a column for it.
-    // const pricePerKilo = Number(formData.get("pricePerKilo"));
+    const location = formData.get("location") as string;
 
     if (files.length === 0) {
       return NextResponse.json({ error: "No photos provided" }, { status: 400 });
     }
     
-    // 2. Validate the new text inputs instead of the old farmer_id
+    // 2. Validate the new text inputs
     if (!farmerName || !phoneNumber || Number.isNaN(volumeKg)) {
       return NextResponse.json(
         { error: "Farmer name, phone number, and a numeric volume are required" },
@@ -35,7 +33,6 @@ export async function POST(req: NextRequest) {
     }
 
     // 3. CREATE THE FARMER FIRST
-    // We insert the new farmer and immediately return their generated row to get the ID
     const { data: newFarmer, error: farmerError } = await supabaseAdmin
       .from("farmers")
       .insert({
@@ -50,7 +47,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `DB Error: ${farmerError.message}` }, { status: 500 });
     }
 
-    // Extract the newly generated UUID
     const farmerId = newFarmer.id;
 
     // 4. RUN THE VISION MODEL INFERENCE
@@ -63,8 +59,40 @@ export async function POST(req: NextRequest) {
 
     const cv = await gradeBatch(images);
 
-    // 5. INSERT THE BATCH
-    // We now use the farmerId we just generated in step 3
+    // 5. UPLOAD THE FIRST PHOTO TO SUPABASE STORAGE FOR THE LEDGER THUMBNAIL
+    const photoFile = files[0];
+    let publicUrl = null;
+
+    if (photoFile) {
+      // Convert the file into a buffer that Supabase can upload
+      const arrayBuffer = await photoFile.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+
+      // Create a unique filename (e.g., batch-173829183-photo.jpg)
+      const fileName = `batch-${Date.now()}-${photoFile.name}`;
+
+      // Upload to the Supabase Storage bucket named "batch-images"
+      const { error: uploadError } = await supabaseAdmin
+        .storage
+        .from("batch-images") 
+        .upload(fileName, buffer, {
+          contentType: photoFile.type,
+        });
+
+      if (uploadError) {
+        console.error("Storage upload error:", uploadError);
+      } else {
+        // Generate the viewable URL to save in your database
+        const { data: urlData } = supabaseAdmin
+          .storage
+          .from("batch-images")
+          .getPublicUrl(fileName);
+          
+        publicUrl = urlData.publicUrl;
+      }
+    }
+
+    // 6. INSERT THE BATCH
     const { data: batch, error: batchError } = await supabaseAdmin
       .from("batches")
       .insert({
@@ -74,6 +102,8 @@ export async function POST(req: NextRequest) {
         grade: LETTER_GRADE[cv.grade],
         status: "graded",
         graded_at: new Date().toISOString(),
+        location: location, 
+        image_url: publicUrl,
       })
       .select()
       .single();
@@ -83,7 +113,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Failed to log batch" }, { status: 500 });
     }
 
-    // 6. SEND SMS RECEIPT
+    // 7. SEND SMS RECEIPT
     const smsResult = await sendGradeSms(farmerId, batch);
 
     return NextResponse.json({ success: true, batch, sms: smsResult, cv });
