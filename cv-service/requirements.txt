@@ -4,4 +4,4 @@ python-multipart
 numpy
 opencv-python-headless
 scikit-learn==1.9.1
-joblib==<version from above>
+joblib
