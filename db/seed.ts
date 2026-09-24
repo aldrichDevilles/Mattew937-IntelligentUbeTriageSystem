@@ -1,23 +1,57 @@
 import { supabaseAdmin } from "./supabase";
 
 async function seed() {
-  const { data: farmers } = await supabaseAdmin
+  // Clear existing data first so re-running this script never creates duplicates
+  await supabaseAdmin
+    .from("batches")
+    .delete()
+    .neq("id", "00000000-0000-0000-0000-000000000000");
+  await supabaseAdmin
+    .from("farmers")
+    .delete()
+    .neq("id", "00000000-0000-0000-0000-000000000000");
+
+  const { data: farmers, error: farmerError } = await supabaseAdmin
     .from("farmers")
     .insert([
-      { name: "Juan Dela Cruz", phone_number: "+639989984989" },
-      { name: "Maria Santos", phone_number: "+639995789711" },
-      { name: "Pedro Reyes", phone_number: "+639191234567" },
-      { name: "Ana Bautista", phone_number: "+639201234567" },
-      { name: "Carlos Mendoza", phone_number: "+639211234567" },
+      {
+        name: "Juan Dela Cruz",
+        phone_number: "+639989984989",
+        location: "Lucena City",
+      },
+      {
+        name: "Maria Santos",
+        phone_number: "+639995789711",
+        location: "Tayabas",
+      },
+      {
+        name: "Pedro Reyes",
+        phone_number: "+639191234567",
+        location: "Candelaria",
+      },
+      {
+        name: "Ana Bautista",
+        phone_number: "+639201234567",
+        location: "Sariaya",
+      },
+      {
+        name: "Carlos Mendoza",
+        phone_number: "+639211234567",
+        location: "Lucban",
+      },
     ])
     .select();
 
+  if (farmerError) {
+    console.error("Farmer insert failed:", farmerError);
+    return;
+  }
   if (!farmers) {
-    console.error("Farmer insert failed");
+    console.error("Farmer insert returned no data");
     return;
   }
 
-  await supabaseAdmin.from("batches").insert([
+  const { error: batchError } = await supabaseAdmin.from("batches").insert([
     {
       farmer_id: farmers[0].id,
       volume_kg: 50,
@@ -55,7 +89,12 @@ async function seed() {
     },
   ]);
 
-  console.log("Seeded.");
+  if (batchError) {
+    console.error("Batch insert failed:", batchError);
+    return;
+  }
+
+  console.log("Seeded cleanly.");
 }
 
 seed();

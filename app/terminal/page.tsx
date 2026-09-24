@@ -13,14 +13,20 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { AlertCircle, UploadCloud, CheckCircle2, Server } from "lucide-react";
 
+const TIER_LABEL: Record<string, string> = {
+  seed: "Seed",
+  industrial: "Industrial",
+  reject: "Below standard",
+};
+
 export default function TerminalPage() {
-  // New combined state for farmer and batch details
   const [farmerName, setFarmerName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [volume, setVolume] = useState("");
   const [pricePerKilo, setPricePerKilo] = useState("");
 
   const [files, setFiles] = useState<File[]>([]);
+  const [wholeFiles, setWholeFiles] = useState<File[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
@@ -29,6 +35,12 @@ export default function TerminalPage() {
     if (e.target.files) {
       const selected = Array.from(e.target.files).slice(0, 3);
       setFiles(selected);
+    }
+  };
+
+  const handleWholeFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      setWholeFiles(Array.from(e.target.files).slice(0, 3));
     }
   };
 
@@ -44,11 +56,11 @@ export default function TerminalPage() {
     formData.append("volume", volume);
     formData.append("pricePerKilo", pricePerKilo);
     files.forEach((file) => formData.append("photos", file));
+    wholeFiles.forEach((file) => formData.append("whole_photos", file));
 
     try {
       const res = await fetch("/api/grade", { method: "POST", body: formData });
 
-      // If the server returns a 500 error, read it as text so it doesn't crash the JSON parser
       if (!res.ok) {
         const errorText = await res.text();
         console.error("Server Error:", errorText);
@@ -73,6 +85,11 @@ export default function TerminalPage() {
       setIsLoading(false);
     }
   };
+
+  const tubers: any[] = result?.cv?.tubers ?? [];
+  const sproutTubers: any[] = result?.sprouts?.tubers ?? [];
+  const isMock = result?.cv?.source === "mock";
+  const smsText: string | undefined = result?.sms?.message ?? result?.smsText;
 
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
@@ -147,7 +164,7 @@ export default function TerminalPage() {
                 </div>
               </div>
 
-              {/* Image Upload */}
+              {/* Cross-section upload */}
               <div className="space-y-2">
                 <label className="text-sm font-medium">
                   Cross-Section Captures (Max 3)
@@ -163,6 +180,26 @@ export default function TerminalPage() {
                   />
                   <p className="text-xs text-muted-foreground mt-2">
                     {files.length} of 3 photos selected
+                  </p>
+                </div>
+              </div>
+
+              {/* Optional whole-tuber upload (experimental sprout check) */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">
+                  Whole-Tuber Photos (optional, max 3)
+                </label>
+                <div className="border-2 border-dashed border-border rounded-lg p-4 flex flex-col items-center justify-center bg-muted/20">
+                  <input
+                    type="file"
+                    multiple
+                    accept="image/*"
+                    onChange={handleWholeFileChange}
+                    className="text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-zinc-700 file:text-white hover:file:bg-zinc-800"
+                  />
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Used for the experimental sprout check only. It does not
+                    change the grade. {wholeFiles.length} selected.
                   </p>
                 </div>
               </div>
@@ -205,16 +242,24 @@ export default function TerminalPage() {
                   <CheckCircle2 className="text-green-500 h-5 w-5" /> Analysis
                   Complete!
                 </CardTitle>
-                {/* <Badge variant="outline" className="flex items-center gap-1">
-                  <Server className="h-3 w-3" /> {result.cv?.source || "Mock"}
-                </Badge> */}
+                <Badge
+                  variant="outline"
+                  className={`flex items-center gap-1 ${
+                    isMock ? "border-amber-500 text-amber-600" : ""
+                  }`}
+                >
+                  <Server className="h-3 w-3" />
+                  {isMock ? "Mock grader (placeholder)" : "Color analysis"}
+                  {result.cv?.modelVersion
+                    ? ` · ${result.cv.modelVersion}`
+                    : ""}
+                </Badge>
               </div>
             </CardHeader>
             <CardContent className="space-y-6 pt-4">
               <div className="grid grid-cols-3 gap-4">
                 <div className="bg-background p-4 rounded-lg border border-border text-center">
                   <p className="text-sm text-muted-foreground mb-1">Grade</p>
-                  {/* Add .batch to access the database row */}
                   <p className="text-3xl font-black text-violet-600">
                     {result.batch?.grade}
                   </p>
@@ -223,7 +268,6 @@ export default function TerminalPage() {
                   <p className="text-sm text-muted-foreground mb-1">
                     Pigment Score
                   </p>
-                  {/* Add .cv to access the computer vision results */}
                   <p className="text-3xl font-black text-violet-600">
                     {result.cv?.pigmentScore}
                   </p>
@@ -244,31 +288,112 @@ export default function TerminalPage() {
                 </div>
               </div>
 
-              <div className="grid sm:grid-cols-3 gap-4">
-                {result.cards?.map((card: any, idx: number) => (
-                  <div
-                    key={idx}
-                    className="bg-background rounded-lg border border-border p-3"
-                  >
-                    <div className="aspect-square bg-muted rounded mb-2 overflow-hidden flex items-center justify-center">
-                      <span className="text-xs text-muted-foreground">
-                        Photo {idx + 1}
-                      </span>
-                    </div>
-                    <p className="text-xs font-medium text-center">
-                      Score: {card.score}
-                    </p>
-                  </div>
-                ))}
+              {/* Reliability of the measurement */}
+              <div className="grid grid-cols-2 gap-4 text-center">
+                <div className="bg-background p-3 rounded-lg border border-border">
+                  <p className="text-xs text-muted-foreground mb-1">
+                    Pigment spread
+                  </p>
+                  <p className="text-lg font-bold">
+                    {result.cv?.pigmentSpread ?? "-"}
+                  </p>
+                </div>
+                <div className="bg-background p-3 rounded-lg border border-border">
+                  <p className="text-xs text-muted-foreground mb-1">
+                    Tubers analyzed
+                  </p>
+                  <p className="text-lg font-bold">{tubers.length}</p>
+                </div>
               </div>
 
+              {/* Per-tuber breakdown: the reason behind the grade */}
+              {tubers.length > 0 && (
+                <div className="grid sm:grid-cols-3 gap-4">
+                  {tubers.map((t: any, idx: number) => {
+                    const url = result.imageUrls?.[idx];
+                    return (
+                      <div
+                        key={idx}
+                        className="bg-background rounded-lg border border-border p-3 space-y-2"
+                      >
+                        <div className="aspect-square bg-muted rounded overflow-hidden flex items-center justify-center">
+                          {url ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={url}
+                              alt={`Photo ${idx + 1}`}
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            <span className="text-xs text-muted-foreground">
+                              Photo {idx + 1}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs font-medium text-center">
+                          Score {t.pigmentScore} ·{" "}
+                          {TIER_LABEL[t.grade] ?? t.grade}
+                        </p>
+                        <div className="flex flex-wrap justify-center gap-1">
+                          {t.defects?.length ? (
+                            t.defects.map((d: string) => (
+                              <Badge
+                                key={d}
+                                variant="outline"
+                                className="border-red-500/40 text-red-600 text-xs"
+                              >
+                                {d.replace("_", " ")}
+                              </Badge>
+                            ))
+                          ) : (
+                            <span className="text-xs text-green-600">
+                              No defects detected
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Experimental sprout check: display only, never affects grade */}
+              {sproutTubers.length > 0 && (
+                <div className="bg-background rounded-lg border border-border p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-sm font-medium">Sprout check</p>
+                    <Badge variant="outline" className="text-xs">
+                      Experimental, not part of the grade
+                    </Badge>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {sproutTubers.map((s: any) => (
+                      <Badge key={s.index} variant="secondary">
+                        Tuber {s.index + 1}: {s.status}
+                        {s.sproutCount ? ` (${s.sproutCount})` : ""}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* SMS the farmer receives */}
               <div className="bg-zinc-950 p-4 rounded-lg border border-zinc-800">
                 <p className="text-xs text-zinc-400 mb-2 uppercase tracking-wider font-semibold">
                   SMS Receipt Generated
                 </p>
                 <p className="text-sm font-mono text-green-400">
-                  {result.smsText}
+                  {smsText ?? "No message returned."}
                 </p>
+                {result.sms && (
+                  <p className="text-xs text-zinc-500 mt-2">
+                    {result.sms.mocked
+                      ? "Mock mode: not actually sent."
+                      : result.sms.delivered
+                        ? "Delivered."
+                        : "Not delivered."}
+                  </p>
+                )}
               </div>
             </CardContent>
           </Card>

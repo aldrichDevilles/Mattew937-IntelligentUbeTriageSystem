@@ -15,6 +15,7 @@ from typing import List
 from fastapi import FastAPI, File, HTTPException, UploadFile
 
 import color_index
+import sprout_index
 
 app = FastAPI(title="Ube CV Service")
 
@@ -85,6 +86,24 @@ def roll_up(tubers: List[dict]) -> dict:
 @app.get("/health")
 def health():
     return {"status": "ok", "modelVersion": MODEL_VERSION}
+
+@app.post("/sprouts")
+async def sprouts(images: List[UploadFile] = File(...)):
+    out = []
+    for i, f in enumerate(images):
+        name = f.filename or f"image_{i}"
+        try:
+            r = sprout_index.analyze_sprouts(await f.read())
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=f"{name}: {e}")
+        out.append({
+            "index": i,
+            "status": r.status,
+            "sproutCount": r.sprout_count,
+            "longestRel": r.longest_rel,
+            "confidence": r.confidence,
+        })
+    return {"tubers": out, "modelVersion": "sprout-index-0.1", "experimental": True}
 
 
 @app.post("/grade")

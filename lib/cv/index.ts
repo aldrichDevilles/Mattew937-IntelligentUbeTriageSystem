@@ -21,7 +21,7 @@ export async function gradeBatch(
   }
 
   const mode =
-    process.env.USE_STUB_MODEL === "false"
+    process.env.USE_STUB_MODEL === "true"
       ? "mock"
       : (process.env.CV_MODE ?? "mock");
 
