@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { Badge } from "@/components/ui/badge";
 import { Navbar } from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,12 +18,28 @@ import {
   MapPin,
   Camera,
   X,
+  Server,
 } from "lucide-react";
 
 // Import the local JSON files directly into the client component
 import regionData from "./refregion.json";
 import citymunData from "./refcitymun.json";
 import brgyData from "./refbrgy.json";
+
+const TIER_LABEL: Record<string, string> = {
+  seed: "Seed",
+  industrial: "Industrial",
+  reject: "Below standard",
+};
+
+const DEFECT_LABEL: Record<string, string> = {
+  rot_suspect: "Possible rot, check by eye",
+  rot: "Rot",
+  browning: "Browning",
+  pale_flesh: "Pale flesh",
+  not_ube: "Not ube",
+  damage: "Damage",
+};
 
 export default function TerminalPage() {
   const [farmerName, setFarmerName] = useState("");
@@ -35,7 +52,10 @@ export default function TerminalPage() {
   const [selectedCitymunCode, setSelectedCitymunCode] = useState("");
   const [selectedBrgyCode, setSelectedBrgyCode] = useState("");
 
+  // Cross-section photos (graded) and whole-tuber photos (sprout check)
   const [files, setFiles] = useState<File[]>([]);
+  const [wholeFiles, setWholeFiles] = useState<File[]>([]);
+
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
@@ -46,21 +66,34 @@ export default function TerminalPage() {
   const streamRef = useRef<MediaStream | null>(null);
 
   // 1. Regions are always available
-  const availableRegions = (regionData as any).RECORDS;
+  const availableRegions: any[] = (regionData as any).RECORDS;
 
   // 2. Filter municipalities where regDesc matches the selected regCode
-  const availableMunicipalities = selectedRegCode
+  const availableMunicipalities: any[] = selectedRegCode
     ? (citymunData as any).RECORDS.filter(
         (m: any) => m.regDesc === selectedRegCode,
       )
     : [];
 
   // 3. Filter barangays where citymunCode matches the selected citymunCode
-  const availableBarangays = selectedCitymunCode
+  const availableBarangays: any[] = selectedCitymunCode
     ? (brgyData as any).RECORDS.filter(
         (b: any) => b.citymunCode === selectedCitymunCode,
       )
     : [];
+
+  // 4. Resolve the selected codes to human-readable names
+  const regionName =
+    availableRegions.find((r: any) => r.regCode === selectedRegCode)?.regDesc ??
+    "";
+  const munName =
+    availableMunicipalities.find(
+      (m: any) => m.citymunCode === selectedCitymunCode,
+    )?.citymunDesc ?? "";
+  const brgyName =
+    availableBarangays.find((b: any) => b.brgyCode === selectedBrgyCode)
+      ?.brgyDesc ?? "";
+  const formattedLocation = `Brgy. ${brgyName}, ${munName}, ${regionName}`;
 
   // Safely stop the camera stream
   const stopCamera = () => {
@@ -133,6 +166,20 @@ export default function TerminalPage() {
     }
   };
 
+  // Whole-tuber photos (used for the experimental sprout check)
+  const handleWholeFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const selected = Array.from(e.target.files);
+      setWholeFiles((prev) => [...prev, ...selected].slice(0, 3));
+    }
+  };
+
+  const removeWholeFile = (indexToRemove: number) => {
+    setWholeFiles((prev) => prev.filter((_, idx) => idx !== indexToRemove));
+  };
+
+  // Helper to shrink massive mobile photos before uploading.
+  // Falls back to the original file if anything goes wrong.
   // --- Auto-Format Phone Number ---
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     // 1. Instantly strip any letters, spaces, or special characters (except +)
@@ -162,10 +209,10 @@ export default function TerminalPage() {
   const compressImage = async (file: File): Promise<File> => {
     return new Promise((resolve) => {
       const reader = new FileReader();
-      reader.readAsDataURL(file);
+      reader.onerror = () => resolve(file);
       reader.onload = (e) => {
         const img = new Image();
-        img.src = e.target?.result as string;
+        img.onerror = () => resolve(file);
         img.onload = () => {
           const canvas = document.createElement("canvas");
           const MAX_WIDTH = 1200;
@@ -186,18 +233,20 @@ export default function TerminalPage() {
             (blob) => {
               if (blob)
                 resolve(new File([blob], file.name, { type: "image/jpeg" }));
+              else resolve(file);
             },
             "image/jpeg",
             0.7,
           );
         };
+        img.src = e.target?.result as string;
       };
+      reader.readAsDataURL(file);
     });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
     setError(null);
     setResult(null);
 
@@ -262,6 +311,21 @@ export default function TerminalPage() {
     compressedFiles.forEach((file) => formData.append("photos", file));
 
     try {
+      const formData = new FormData();
+      formData.append("farmerName", farmerName);
+      formData.append("phoneNumber", phoneNumber);
+      formData.append("volume", volume);
+      formData.append("pricePerKilo", pricePerKilo);
+      formData.append("location", formattedLocation);
+
+      // Compress all files in parallel before attaching to the payload
+      const [compressedFiles, compressedWhole] = await Promise.all([
+        Promise.all(files.map((file) => compressImage(file))),
+        Promise.all(wholeFiles.map((file) => compressImage(file))),
+      ]);
+      compressedFiles.forEach((file) => formData.append("photos", file));
+      compressedWhole.forEach((file) => formData.append("whole_photos", file));
+
       const res = await fetch("/api/grade", { method: "POST", body: formData });
 
       if (!res.ok) {
@@ -270,7 +334,6 @@ export default function TerminalPage() {
         setError(
           `Server Error ${res.status}: Check browser console for details.`,
         );
-        setIsLoading(false);
         return;
       }
 
@@ -288,6 +351,12 @@ export default function TerminalPage() {
       setIsLoading(false);
     }
   };
+
+  const tubers: any[] = result?.cv?.tubers ?? [];
+  const reviewTubers = tubers.filter((t) => t.needsReview);
+  const needsReview = reviewTubers.length > 0;
+  const sproutTubers: any[] = result?.sprouts?.tubers ?? [];
+  const isMock = result?.cv?.source === "mock";
 
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
@@ -527,6 +596,62 @@ export default function TerminalPage() {
                 )}
               </div>
 
+              {/* Whole-tuber photos for the experimental sprout check */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium">
+                    Whole Tuber Photos ({wholeFiles.length}/3)
+                  </label>
+                  <Badge variant="outline" className="text-xs">
+                    Optional · sprout check only
+                  </Badge>
+                </div>
+
+                {wholeFiles.length < 3 && (
+                  <div className="relative">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full flex gap-2"
+                    >
+                      <UploadCloud className="h-4 w-4" /> Upload Whole Tuber
+                      Photos
+                    </Button>
+                    <input
+                      type="file"
+                      multiple
+                      accept="image/*"
+                      onChange={handleWholeFileChange}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                    />
+                  </div>
+                )}
+
+                {wholeFiles.length > 0 && (
+                  <div className="grid grid-cols-3 gap-4 pt-2">
+                    {wholeFiles.map((file, idx) => (
+                      <div
+                        key={idx}
+                        className="relative aspect-square rounded-lg border border-border overflow-hidden group"
+                      >
+                        <img
+                          src={URL.createObjectURL(file)}
+                          alt={`Whole tuber ${idx + 1}`}
+                          className="w-full h-full object-cover"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeWholeFile(idx)}
+                          className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               <Button
                 type="submit"
                 className="w-full bg-violet-600 hover:bg-violet-700 text-white"
@@ -550,30 +675,43 @@ export default function TerminalPage() {
 
         {result?.cv?.needsResample && (
           <div className="bg-amber-500/10 border border-amber-500/20 text-amber-600 p-4 rounded-lg flex items-start gap-3">
-            <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
             <p className="text-sm font-medium">
-              Photos disagree, please rescan the batch.
+              {needsReview
+                ? `${reviewTubers.length} of ${tubers.length} photo(s) flagged as possible rot. Check the tuber by eye before confirming the grade.`
+                : "Photos disagree, please rescan the batch."}
             </p>
           </div>
         )}
 
-        {result && !result.cv?.needsResample && (
+        {result && (!result.cv?.needsResample || needsReview) && (
           <Card className="border-border bg-muted/10">
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-xl flex items-center gap-2">
-                  <CheckCircle2 className="text-green-500 h-5 w-5" /> Analysis
-                  Complete!
+                  <CheckCircle2 className="text-green-500 h-5 w-5" />{" "}
+                  {needsReview
+                    ? "Analysis complete, review needed"
+                    : "Analysis Complete!"}
                 </CardTitle>
+                <Badge
+                  variant="outline"
+                  className={`flex items-center gap-1 ${
+                    isMock ? "border-amber-500 text-amber-600" : ""
+                  }`}
+                >
+                  <Server className="h-3 w-3" />
+                  {isMock ? "Mock grader (placeholder)" : "Color analysis"}
+                  {result.cv?.modelVersion
+                    ? ` · ${result.cv.modelVersion}`
+                    : ""}
+                </Badge>
               </div>
             </CardHeader>
             <CardContent className="space-y-6 pt-4">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-                <div className="bg-background p-3 sm:p-4 rounded-lg border border-border text-center flex flex-col justify-center">
-                  <p className="text-xs sm:text-sm text-muted-foreground mb-1">
-                    Grade
-                  </p>
-                  <p className="text-2xl sm:text-3xl font-black text-violet-600">
+              <div className="grid grid-cols-3 gap-4">
+                <div className="bg-background p-4 rounded-lg border border-border text-center">
+                  <p className="text-sm text-muted-foreground mb-1">Grade</p>
+                  <p className="text-3xl font-black text-violet-600">
                     {result.batch?.grade}
                   </p>
                 </div>
@@ -601,24 +739,109 @@ export default function TerminalPage() {
                 </div>
               </div>
 
-              <div className="grid sm:grid-cols-3 gap-4">
-                {result.cv?.cards?.map((card: any, idx: number) => (
-                  <div
-                    key={idx}
-                    className="bg-background rounded-lg border border-border p-3"
-                  >
-                    <div className="aspect-square bg-muted rounded mb-2 overflow-hidden flex items-center justify-center">
-                      <span className="text-xs text-muted-foreground">
-                        Photo {idx + 1}
-                      </span>
+              {/* Fallback per-photo cards, only when there is no per-tuber breakdown */}
+              {tubers.length === 0 && result.cv?.cards?.length > 0 && (
+                <div className="grid sm:grid-cols-3 gap-4">
+                  {result.cv.cards.map((card: any, idx: number) => (
+                    <div
+                      key={idx}
+                      className="bg-background rounded-lg border border-border p-3"
+                    >
+                      <div className="aspect-square bg-muted rounded mb-2 overflow-hidden flex items-center justify-center">
+                        <span className="text-xs text-muted-foreground">
+                          Photo {idx + 1}
+                        </span>
+                      </div>
+                      <p className="text-xs font-medium text-center">
+                        Score: {card.score}
+                      </p>
                     </div>
-                    <p className="text-xs font-medium text-center">
-                      Score: {card.score}
-                    </p>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
 
+              {/* Per-tuber breakdown: the reason behind the grade */}
+              {tubers.length > 0 && (
+                <div className="grid sm:grid-cols-3 gap-4">
+                  {tubers.map((t: any, idx: number) => {
+                    const url = result.imageUrls?.[idx];
+                    return (
+                      <div
+                        key={idx}
+                        className="bg-background rounded-lg border border-border p-3 space-y-2"
+                      >
+                        <div className="aspect-square bg-muted rounded overflow-hidden flex items-center justify-center">
+                          {url ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={url}
+                              alt={`Photo ${idx + 1}`}
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            <span className="text-xs text-muted-foreground">
+                              Photo {idx + 1}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs font-medium text-center">
+                          Score {t.pigmentScore} ·{" "}
+                          {TIER_LABEL[t.grade] ?? t.grade}
+                        </p>
+                        <div className="flex flex-wrap justify-center gap-1">
+                          {t.defects?.length ? (
+                            t.defects.map((d: string) => (
+                              <Badge
+                                key={d}
+                                variant="outline"
+                                className={
+                                  d === "rot_suspect"
+                                    ? "border-amber-500/50 text-amber-600 text-xs"
+                                    : "border-red-500/40 text-red-600 text-xs"
+                                }
+                              >
+                                {DEFECT_LABEL[d] ?? d.replace(/_/g, " ")}
+                              </Badge>
+                            ))
+                          ) : (
+                            <span className="text-xs text-green-600">
+                              No defects detected
+                            </span>
+                          )}
+                        </div>
+                        {typeof t.rotProbability === "number" && (
+                          <p className="text-[11px] text-center text-muted-foreground">
+                            Rot probability {Math.round(t.rotProbability * 100)}
+                            %
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Experimental sprout check: display only, never affects grade */}
+              {sproutTubers.length > 0 && (
+                <div className="bg-background rounded-lg border border-border p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-sm font-medium">Sprout check</p>
+                    <Badge variant="outline" className="text-xs">
+                      Experimental, not part of the grade
+                    </Badge>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {sproutTubers.map((s: any) => (
+                      <Badge key={s.index} variant="secondary">
+                        Tuber {s.index + 1}: {s.status}
+                        {s.sproutCount ? ` (${s.sproutCount})` : ""}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* SMS the farmer receives */}
               <div className="bg-zinc-950 p-4 rounded-lg border border-zinc-800">
                 <p className="text-xs text-zinc-400 mb-2 uppercase tracking-wider font-semibold">
                   SMS Receipt Generated
@@ -626,6 +849,17 @@ export default function TerminalPage() {
                 <p className="text-sm font-mono text-green-400">
                   SMS sent to {phoneNumber}
                 </p>
+                {result.sms && (
+                  <p className="text-xs text-zinc-500 mt-2">
+                    {result.sms.mocked
+                      ? "Mock mode: not actually sent."
+                      : result.sms.delivered
+                        ? "Delivered."
+                        : result.sms.skipped === "needs_resample"
+                          ? "Not sent: rescan needed."
+                          : "Not delivered."}
+                  </p>
+                )}
               </div>
             </CardContent>
           </Card>

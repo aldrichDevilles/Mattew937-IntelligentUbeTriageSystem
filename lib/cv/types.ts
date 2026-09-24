@@ -13,6 +13,7 @@ export type UbeGrade = "seed" | "industrial" | "reject";
 export type DefectFlag =
   | "browning"
   | "rot"
+  | "rot_suspect"
   | "damage"
   | "pale_flesh"
   | "not_ube";
@@ -32,6 +33,10 @@ export interface TuberResult {
   defects: DefectFlag[];
   /** 0-1 */
   confidence: number;
+  /** 0-1 confidence from the learned rot model. Null/absent if the model was unavailable. */
+  rotProbability?: number | null;
+  /** True when the rule and the model disagree on rot. A human should look. */
+  needsReview?: boolean;
 }
 
 export interface BatchGradeResult {
