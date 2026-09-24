@@ -99,13 +99,8 @@ export async function POST(req: NextRequest) {
 
     const farmerName = formData.get("farmerName") as string;
     const phoneNumber = formData.get("phoneNumber") as string;
-
-    // M2: a missing/blank volume used to become 0 (Number(null) === 0) and pass
-    const rawVolume = formData.get("volume") ?? formData.get("volume_kg");
-    const volumeKg =
-      typeof rawVolume === "string" && rawVolume.trim() !== ""
-        ? Number(rawVolume)
-        : NaN;
+    const volumeKg = Number(formData.get("volume"));
+    const location = formData.get("location") as string;
 
     if (files.length === 0) {
       return NextResponse.json(
@@ -114,6 +109,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // 2. Validate the new text inputs
+    if (!farmerName || !phoneNumber || Number.isNaN(volumeKg)) {
+      return NextResponse.json(
+        { error: "No photos provided" },
+        { status: 400 },
+      );
+    } // 1. validation (keep as is)
     if (
       !farmerName ||
       !phoneNumber ||
@@ -129,8 +131,23 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // M1: RUN THE VISION MODEL FIRST, before any database write.
-    // If CV fails, nothing has been created, so there are no orphan rows.
+    // 2. CREATE THE FARMER FIRST
+    const { data: newFarmer, error: farmerError } = await supabaseAdmin
+      .from("farmers")
+      .insert({ name: farmerName, phone_number: phoneNumber })
+      .select()
+      .single();
+
+    if (farmerError) {
+      console.error("Farmer Creation Error:", farmerError);
+      return NextResponse.json(
+        { error: `DB Error: ${farmerError.message}` },
+        { status: 500 },
+      );
+    }
+    const farmerId = newFarmer.id;
+
+    // 3. RUN CV (moved below the farmer insert)
     const images = await Promise.all(
       files.map(async (f) => ({
         name: f.name,
@@ -143,9 +160,13 @@ export async function POST(req: NextRequest) {
       cv = await gradeBatch(images);
     } catch (cvErr) {
       console.error("CV grading failed:", cvErr);
+      // don't leave an orphan farmer row behind
+      await supabaseAdmin.from("farmers").delete().eq("id", farmerId);
       const { status, message } = classifyCvError(cvErr);
       return NextResponse.json({ error: message }, { status });
     }
+
+    // 4. SPROUTS (optional whole-tuber photos)
     const wholeFiles = formData
       .getAll("whole_photos")
       .filter((f): f is File => f instanceof File && f.size > 0);
@@ -156,26 +177,6 @@ export async function POST(req: NextRequest) {
       })),
     );
     const sprouts = await analyzeSprouts(wholeImages);
-
-    // CREATE THE FARMER (only now that we have a real grading result)
-    const { data: newFarmer, error: farmerError } = await supabaseAdmin
-      .from("farmers")
-      .insert({
-        name: farmerName,
-        phone_number: phoneNumber,
-      })
-      .select()
-      .single();
-
-    if (farmerError) {
-      console.error("Farmer Creation Error:", farmerError);
-      return NextResponse.json(
-        { error: `DB Error: ${farmerError.message}` },
-        { status: 500 },
-      );
-    }
-
-    const farmerId = newFarmer.id;
 
     // INSERT THE BATCH
     const { data: batch, error: batchError } = await supabaseAdmin
@@ -188,6 +189,7 @@ export async function POST(req: NextRequest) {
         grade: LETTER_GRADE[cv.grade],
         status: "graded",
         graded_at: new Date().toISOString(),
+        location: location,
       })
       .select()
       .single();
@@ -199,7 +201,6 @@ export async function POST(req: NextRequest) {
         { status: 500 },
       );
     }
-
     // UPLOAD IMAGES TO STORAGE & UPDATE BATCH
     const imageUrls = await uploadImages(files, batch.id);
     if (imageUrls.length > 0) {

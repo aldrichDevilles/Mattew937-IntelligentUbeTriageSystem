@@ -9,7 +9,7 @@ export { RUBRIC } from "./rubric";
  *
  * Env vars (.env.local):
  *   USE_STUB_MODEL=true  legacy flag, forces the mock (kept so old setups work)
- *   CV_MODE=mock         (default) use the placeholder grader
+ *   CV_MODE=mock         (ult) use the placeholder grader
  *   CV_MODE=service      call the Python service
  *   CV_SERVICE_URL=http://localhost:8000
  */
